@@ -2,74 +2,55 @@
 
 namespace Macroseso\Enzona\Payment;
 
-use Exception;
+use Illuminate\Support\Facades\Http;
+use Macroseso\Enzona\Exceptions\EnzonaException;
+use Macroseso\Enzona\Models\EnzonaSetting;
+use Macroseso\Enzona\RequestToken;
 
 class PaymentRequest
 {
-    private $accessToken;
-    private $baseUrl;
+    private $settings;
+    private $tokenProvider;
 
-    public function __construct($accessToken, $baseUrl)
+    public function __construct(EnzonaSetting $settings, RequestToken $tokenProvider)
     {
-        $this->accessToken = $accessToken;
-        $this->baseUrl = rtrim($baseUrl, '/');
+        $this->settings = $settings;
+        $this->tokenProvider = $tokenProvider;
     }
 
-    public function send($method, $route, ?array $data = null): array
+    public function send($method, $route = '', array $data = null): array
     {
-        $url = $route === '' ? $this->baseUrl : $this->baseUrl . '/' . ltrim($route, '/');
-        $headers = [
-            'Accept: application/json',
-            'Authorization: Bearer ' . $this->accessToken,
-        ];
-        $options = [
-            CURLOPT_CUSTOMREQUEST => strtoupper($method),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_HTTPHEADER => $headers,
-        ];
-
-        if ($data !== null) {
-            $body = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            if ($body === false) {
-                throw new Exception('No se pudo codificar la solicitud como JSON.');
-            }
-
-            $options[CURLOPT_POSTFIELDS] = $body;
-            $options[CURLOPT_HTTPHEADER][] = 'Content-Type: application/json';
+        if (!$this->settings->is_enabled) {
+            throw new EnzonaException('La pasarela de EnZona está deshabilitada.');
         }
 
-        $ch = curl_init($url);
-        if ($ch === false) {
-            throw new Exception('No se pudo inicializar la solicitud de pago.');
+        $url = $this->tokenProvider->apiHost($this->settings)
+            . rtrim(config('enzona.payment_path', '/payment/v1.0.0/payments'), '/');
+        if ($route !== '') {
+            $url .= '/' . ltrim($route, '/');
         }
 
-        curl_setopt_array($ch, $options);
-        $result = curl_exec($ch);
-        $error = curl_error($ch);
-        $errno = curl_errno($ch);
-        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        $request = Http::acceptJson()
+            ->withToken($this->tokenProvider->accessToken($this->settings))
+            ->timeout((int) config('enzona.timeout', 30));
 
-        if ($errno) {
-            throw new Exception("Error de cURL ({$errno}): {$error}");
+        $response = $request->send(strtoupper($method), $url, $data === null ? [] : ['json' => $data]);
+        if (!$response->successful()) {
+            throw new EnzonaException(
+                'EnZona respondió con un error HTTP ' . $response->status() . '.',
+                $response->status()
+            );
         }
 
-        if ($status < 200 || $status >= 300) {
-            throw new Exception("Error en la solicitud a Enzona: Código HTTP {$status}.");
-        }
-
-        if ($result === '' || $result === false) {
+        if ($response->status() === 204 || $response->body() === '') {
             return [];
         }
 
-        $response = json_decode($result, true);
-        if (json_last_error() !== JSON_ERROR_NONE || !is_array($response)) {
-            throw new Exception('La respuesta de Enzona no contiene JSON válido.');
+        $decoded = $response->json();
+        if (!is_array($decoded)) {
+            throw new EnzonaException('La respuesta de EnZona no contiene un objeto JSON válido.');
         }
 
-        return $response;
+        return $decoded;
     }
 }

@@ -1,9 +1,15 @@
 <?php
 
 return [
-    'api_key' => env('ENZONA_API_KEY'),
-    'api_secret' => env('ENZONA_API_SECRET'),
-    'username' => env('ENZONA_USERNAME'),
-    'password' => env('ENZONA_PASSWORD'),
-    'sandbox' => env('ENZONA_SANDBOX', true),
+    'api_hosts' => [
+        'sandbox' => 'https://apisandbox.enzona.net',
+        'production' => 'https://api.enzona.net',
+    ],
+    'oauth_path' => '/token',
+    'payment_path' => '/payment/v1.0.0/payments',
+    'oauth_scope' => 'enzona_business_payment enzona_business_qr',
+    'timeout' => 30,
+    'token_expiration_buffer' => 30,
+    'register_routes' => true,
+    'route_middleware' => ['web'],
 ];
