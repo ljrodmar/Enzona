@@ -78,9 +78,16 @@ class EnzonaTest extends TestCase
         $expected['return_url'] = 'https://merchant.test/return';
         $expected['cancel_url'] = 'https://merchant.test/cancel';
         Http::assertSent(function (Request $request) use ($expected) {
-            return $request->url() === 'https://apisandbox.enzona.net/payment/v1.0.0/payments'
-                && $request->hasHeader('Authorization')
-                && $request->data() === json_decode(json_encode($expected), true);
+            if ($request->url() !== 'https://apisandbox.enzona.net/payment/v1.0.0/payments'
+                || !$request->hasHeader('Authorization')) {
+                return false;
+            }
+
+            $actual = $request->data();
+            ksort($actual);
+            ksort($expected);
+
+            return $actual === $expected;
         });
         Http::assertSent(function (Request $request) {
             return $request->url() === 'https://apisandbox.enzona.net/token'
@@ -179,6 +186,16 @@ class EnzonaTest extends TestCase
     {
         $this->assertSame(204, $this->get(route('enzona.return'))->getStatusCode());
         $this->assertSame(204, $this->get(route('enzona.cancel'))->getStatusCode());
+    }
+
+    public function test_logo_asset_can_be_published()
+    {
+        $this->artisan('vendor:publish', [
+            '--tag' => 'enzona-assets',
+            '--force' => true,
+        ])->assertExitCode(0);
+
+        $this->assertFileExists(public_path('vendor/enzona/enzona-logo.svg'));
     }
 
     public function test_http_errors_are_reported_with_the_status_code()

@@ -5,7 +5,7 @@ Paquete Laravel para autenticar un comercio con EnZona y crear, consultar, cance
 ## Requisitos
 
 - PHP 7.4 o posterior.
-- Laravel 8 a 12.
+- Laravel 8 a 13.
 - Una base de datos soportada por Laravel y una `APP_KEY` configurada.
 
 ## Instalación
@@ -18,6 +18,20 @@ php artisan migrate
 ```
 
 Laravel descubre automáticamente el proveedor del paquete. La migración del paquete también se carga desde su directorio; publicarla permite mantenerla dentro de la aplicación.
+
+## Logo en ajustes
+
+Publique el logo del paquete:
+
+```bash
+php artisan vendor:publish --tag=enzona-assets
+```
+
+El archivo queda en `public/vendor/enzona/enzona-logo.svg`. Puede mostrarlo en la vista de ajustes de su aplicación con Blade:
+
+```blade
+<img src="{{ asset('vendor/enzona/enzona-logo.svg') }}" alt="EnZona" width="96" height="96">
+```
 
 ## Credenciales y entorno
 
