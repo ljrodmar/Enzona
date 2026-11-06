@@ -18,7 +18,7 @@ class PaymentRequest
         $this->tokenProvider = $tokenProvider;
     }
 
-    public function send($method, $route = '', array $data = null): array
+    public function send($method, $route = '', ?array $data = null): array
     {
         if (!$this->settings->is_enabled) {
             throw new EnzonaException('La pasarela de EnZona está deshabilitada.');

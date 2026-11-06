@@ -35,9 +35,10 @@ class EnzonaServiceProvider extends ServiceProvider
             return new PaymentRequest($app->make(EnzonaSetting::class), $app->make(RequestToken::class));
         });
         $this->app->bind(Enzona::class, function ($app) {
+            $settings = EnzonaSetting::global();
             return new Enzona(
-                $app->make(EnzonaSetting::class),
-                $app->make(PaymentRequest::class)
+                $settings,
+                new PaymentRequest($settings, $app->make(RequestToken::class))
             );
         });
     }

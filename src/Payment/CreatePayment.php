@@ -50,25 +50,31 @@ class CreatePayment
         }
 
         $this->requireString($data['merchant_uuid'], 'merchant_uuid');
-        $this->requireNumeric($data['merchant_op_id'], 'merchant_op_id');
+        $this->requireInteger($data['merchant_op_id'], 'merchant_op_id', 1);
         $this->requireString($data['description'], 'description');
         $this->requireString($data['currency'], 'currency');
-        $this->requireNumeric($data['invoice_number'], 'invoice_number');
+        $this->requireInteger($data['invoice_number'], 'invoice_number', 0);
         $this->requireString($data['buyer_identity_code'], 'buyer_identity_code');
-        $this->requireNumeric($data['terminal_id'], 'terminal_id');
+        $this->requireInteger($data['terminal_id'], 'terminal_id', 1);
 
         if (!is_array($data['amount']) || !array_key_exists('total', $data['amount'])
             || !isset($data['amount']['details']) || !is_array($data['amount']['details'])) {
             throw new InvalidArgumentException("El campo 'amount' debe incluir total y details.");
         }
-        $this->requireNumeric($data['amount']['total'], 'amount.total');
+        $this->requireNumber($data['amount']['total'], 'amount.total');
+        if ($data['amount']['total'] <= 0) {
+            throw new InvalidArgumentException("El campo 'amount.total' debe ser mayor que cero.");
+        }
 
         $details = [];
         foreach (['shipping', 'discount', 'tax', 'tip'] as $field) {
             if (!array_key_exists($field, $data['amount']['details'])) {
                 throw new InvalidArgumentException("Falta el campo obligatorio 'amount.details.{$field}'.");
             }
-            $this->requireNumeric($data['amount']['details'][$field], 'amount.details.' . $field);
+            $this->requireNumber($data['amount']['details'][$field], 'amount.details.' . $field);
+            if ($data['amount']['details'][$field] < 0) {
+                throw new InvalidArgumentException("El campo 'amount.details.{$field}' no puede ser negativo.");
+            }
             $details[$field] = $data['amount']['details'][$field];
         }
 
@@ -85,11 +91,14 @@ class CreatePayment
                     throw new InvalidArgumentException("Falta el campo obligatorio 'items.{$index}.{$field}'.");
                 }
             }
-            $this->requireNumeric($item['quantity'], "items.{$index}.quantity");
-            $this->requireNumeric($item['price'], "items.{$index}.price");
+            $this->requireInteger($item['quantity'], "items.{$index}.quantity", 1);
+            $this->requireNumber($item['price'], "items.{$index}.price");
             $this->requireString($item['name'], "items.{$index}.name");
             $this->requireString($item['description'], "items.{$index}.description");
-            $this->requireNumeric($item['tax'], "items.{$index}.tax");
+            $this->requireNumber($item['tax'], "items.{$index}.tax");
+            if ($item['price'] < 0 || $item['tax'] < 0) {
+                throw new InvalidArgumentException("Los importes de items.{$index} no pueden ser negativos.");
+            }
             $items[] = [
                 'quantity' => $item['quantity'],
                 'price' => $item['price'],
@@ -140,10 +149,17 @@ class CreatePayment
         }
     }
 
-    private function requireNumeric($value, $field): void
+    private function requireNumber($value, $field): void
     {
-        if (!is_numeric($value)) {
-            throw new InvalidArgumentException("El campo '{$field}' debe ser numérico.");
+        if ((!is_int($value) && !is_float($value)) || !is_finite((float) $value)) {
+            throw new InvalidArgumentException("El campo '{$field}' debe ser un número entero o decimal.");
+        }
+    }
+
+    private function requireInteger($value, $field, $minimum): void
+    {
+        if (!is_int($value) || $value < $minimum) {
+            throw new InvalidArgumentException("El campo '{$field}' debe ser un entero mayor o igual que {$minimum}.");
         }
     }
 }

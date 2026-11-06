@@ -33,6 +33,15 @@ class EnzonaSetting extends Model
         'token_expires_in' => 'integer',
     ];
 
+    protected static function booted()
+    {
+        static::saving(function (self $setting) {
+            if ((int) $setting->getKey() !== 1) {
+                throw new InvalidArgumentException('Solo se permite el registro global de configuración con id 1.');
+            }
+        });
+    }
+
     public static function global(): self
     {
         $setting = static::query()->find(1);
@@ -76,6 +85,10 @@ class EnzonaSetting extends Model
 
     public function activate(): self
     {
+        if (!$this->consumer_key || !$this->consumer_secret) {
+            throw new InvalidArgumentException('Configure las credenciales antes de activar la pasarela.');
+        }
+
         $this->is_enabled = true;
         $this->save();
 

@@ -28,7 +28,8 @@ class RefundPayment
         if (!is_array($data['amount'])
             || !isset($data['amount']['total'])
             || !is_string($data['amount']['total'])
-            || !is_numeric($data['amount']['total'])) {
+            || !is_numeric($data['amount']['total'])
+            || (float) $data['amount']['total'] <= 0) {
             throw new InvalidArgumentException("El campo 'amount.total' debe ser una cadena numérica.");
         }
         foreach (['commerce_refund_id', 'username', 'description'] as $field) {
