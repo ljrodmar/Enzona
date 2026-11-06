@@ -1,51 +1,29 @@
 <?php
 
-namespace Lmacroseso\Enzona\Payment;
+namespace Macroseso\Enzona\Payment;
 
-use Exception;
+use InvalidArgumentException;
 
 class CancelPayment
 {
-    private $accessToken;
-    private $usedHost;
-    private $apiRoute;
-    private $cancelRoute = "cancel"; // Asegúrate de definir la ruta correcta
+    private $request;
 
-    public function __construct($accessToken, $usedHost)
+    public function __construct(PaymentRequest $request)
     {
-        $this->accessToken = $accessToken;
-        $this->usedHost = $usedHost;
-        $this->apiRoute = $apiRoute;
+        $this->request = $request;
     }
 
-    public function cancel($uuid)
+    public function cancel($transactionUuid): array
     {
-        $uri = "{$this->usedHost}/{$uuid}/{$this->cancelRoute}";
+        $this->validateTransactionUuid($transactionUuid);
 
-        $ch = curl_init($uri);
-        curl_setopt_array($ch, [
-            CURLOPT_HEADER => false,
-            CURLOPT_POST => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                "Accept: application/json",
-                "Authorization: Bearer {$this->accessToken}",
-                "Content-Type: application/json"
-            ]
-        ]);
+        return $this->request->send('POST', rawurlencode($transactionUuid) . '/cancel');
+    }
 
-        $result = curl_exec($ch);
-        $error = curl_error($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($code === 200) {
-            return json_decode($result, true);
+    private function validateTransactionUuid($transactionUuid): void
+    {
+        if (!is_string($transactionUuid) || trim($transactionUuid) === '') {
+            throw new InvalidArgumentException('El identificador de la transacción es obligatorio.');
         }
-
-        throw new Exception("Error al cancelar el pago: {$error}", $code);
     }
 }

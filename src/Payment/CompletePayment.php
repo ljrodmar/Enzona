@@ -1,51 +1,24 @@
 <?php
 
-namespace Lmacroseso\Enzona\Payment;
+namespace Macroseso\Enzona\Payment;
 
-use Exception;
+use InvalidArgumentException;
 
 class CompletePayment
 {
-    private $accessToken;
-    private $usedHost;
-    private $apiRoute;
-    private $completeRoute = "complete"; // Ruta correcta para completar el pago
+    private $request;
 
-    public function __construct($accessToken, $usedHost, $apiRoute)
+    public function __construct(PaymentRequest $request)
     {
-        $this->accessToken = $accessToken;
-        $this->usedHost = $usedHost;
-        $this->apiRoute = $apiRoute;
+        $this->request = $request;
     }
 
-    public function complete($uuid)
+    public function complete($transactionUuid): array
     {
-        $uri = "{$this->usedHost}/{$uuid}/{$this->completeRoute}";
-
-        $ch = curl_init($uri);
-        curl_setopt_array($ch, [
-            CURLOPT_HEADER => false,
-            CURLOPT_POST => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                "Accept: application/json",
-                "Authorization: Bearer {$this->accessToken}",
-                "Content-Type: application/json"
-            ]
-        ]);
-
-        $result = curl_exec($ch);
-        $error = curl_error($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($code === 200) {
-            return json_decode($result, true);
+        if (!is_string($transactionUuid) || trim($transactionUuid) === '') {
+            throw new InvalidArgumentException('El identificador de la transacción es obligatorio.');
         }
 
-        throw new Exception("Error al completar el pago: {$error}", $code);
+        return $this->request->send('POST', rawurlencode($transactionUuid) . '/complete');
     }
 }

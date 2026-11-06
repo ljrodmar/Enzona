@@ -1,58 +1,52 @@
 <?php
 
-namespace Lmacroseso\Enzona\Payment;
+namespace Macroseso\Enzona\Payment;
 
-use Exception;
+use InvalidArgumentException;
 
 class RefundPayment
 {
-    private $accessToken;
-    private $usedHost;
-    private $refundRoute = "refund"; // Ruta para reembolsar un pago
+    private $request;
 
-    public function __construct($accessToken, $usedHost)
+    public function __construct(PaymentRequest $request)
     {
-        $this->accessToken = $accessToken;
-        $this->usedHost = $usedHost;
-        $this->apiRoute = $apiRoute;
+        $this->request = $request;
     }
 
-    public function refund($uuid, $amount)
+    public function refund($transactionUuid, array $data): array
     {
-        $uri = "{$this->usedHost}/{$uuid}/{$this->refundRoute}";
-
-        // Datos del reembolso
-        $data = [
-            'amount' => $amount, // El monto del reembolso
-        ];
-
-        $body = json_encode($data);
-
-        $ch = curl_init($uri);
-        curl_setopt_array($ch, [
-            CURLOPT_HEADER => false,
-            CURLOPT_POST => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                "Accept: application/json",
-                "Authorization: Bearer {$this->accessToken}",
-                "Content-Type: application/json"
-            ],
-            CURLOPT_POSTFIELDS => $body,
-        ]);
-
-        $result = curl_exec($ch);
-        $error = curl_error($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($code === 200) {
-            return json_decode($result, true);
+        if (!is_string($transactionUuid) || trim($transactionUuid) === '') {
+            throw new InvalidArgumentException('El identificador de la transacción es obligatorio.');
         }
 
-        throw new Exception("Error al reembolsar el pago: {$error}", $code);
+        foreach (['amount', 'commerce_refund_id', 'username', 'description'] as $field) {
+            if (!array_key_exists($field, $data)) {
+                throw new InvalidArgumentException("Falta el campo obligatorio '{$field}'.");
+            }
+        }
+
+        if (!is_array($data['amount'])
+            || !isset($data['amount']['total'])
+            || !is_string($data['amount']['total'])
+            || !is_numeric($data['amount']['total'])
+            || (float) $data['amount']['total'] <= 0) {
+            throw new InvalidArgumentException("El campo 'amount.total' debe ser una cadena numérica.");
+        }
+        foreach (['commerce_refund_id', 'username', 'description'] as $field) {
+            if (!is_string($data[$field]) || trim($data[$field]) === '') {
+                throw new InvalidArgumentException("El campo '{$field}' debe ser una cadena no vacía.");
+            }
+        }
+
+        $payload = [
+            'amount' => [
+                'total' => $data['amount']['total'],
+            ],
+            'commerce_refund_id' => $data['commerce_refund_id'],
+            'username' => $data['username'],
+            'description' => $data['description'],
+        ];
+
+        return $this->request->send('POST', rawurlencode($transactionUuid) . '/refund', $payload);
     }
 }

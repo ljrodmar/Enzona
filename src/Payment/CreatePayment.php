@@ -1,99 +1,170 @@
 <?php
 
-namespace Lmacroseso\Enzona\Payment;
+namespace Macroseso\Enzona\Payment;
 
-use Exception;
+use InvalidArgumentException;
+use Macroseso\Enzona\Exceptions\EnzonaException;
+use Macroseso\Enzona\Models\EnzonaSetting;
 
 class CreatePayment
 {
-    private $accessToken;
-    private $usedHost;
+    private $settings;
+    private $request;
 
-    public function __construct($accessToken, $usedHost)
+    public function __construct(EnzonaSetting $settings, PaymentRequest $request)
     {
-        $this->accessToken = $accessToken;
-        $this->usedHost = $usedHost;
+        $this->settings = $settings;
+        $this->request = $request;
     }
 
     public function processPayment(array $data): array
     {
-        try {
-            // Validación de los datos requeridos
-            if (!isset($data['merchant_uuid'], $data['merchant_op_id'], $data['amount'], $data['description'], $data['return_url'], $data['currency'], $data['items'], $data['invoice_number'], $data['cancel_url'], $data['buyer_identity_code'], $data['terminal_id'])) {
-                throw new Exception("Faltan datos obligatorios en la solicitud.");
-            }
+        if (!$this->settings->is_enabled) {
+            throw new EnzonaException('La pasarela de EnZona está deshabilitada.');
+        }
 
-            // Construcción del JSON de pago
-            $paymentData = [
-                "merchant_uuid" => $data['merchant_uuid'],
-                "merchant_op_id" => $data['merchant_op_id'],
-                "amount" => [
-                    "total" => $data['amount']['total'] ?? 0.01,
-                    "details" => [
-                        "shipping" => $data['amount']['details']['shipping'] ?? 0.00,
-                        "discount" => $data['amount']['details']['discount'] ?? 0.00,
-                        "tax" => $data['amount']['details']['tax'] ?? 0.00,
-                        "tip" => $data['amount']['details']['tip'] ?? 0.00
-                    ]
-                ],
-                "description" => $data['description'],
-                "return_url" => $data['return_url'],
-                "currency" => $data['currency'],
-                "items" => $data['items'], // Array de productos
-                "invoice_number" => $data['invoice_number'],
-                "cancel_url" => $data['cancel_url'],
-                "buyer_identity_code" => $data['buyer_identity_code'],
-                "terminal_id" => $data['terminal_id']
+        $payload = $this->buildPayload($data);
+        $response = $this->request->send('POST', '', $payload);
+
+        return [
+            'response' => $response,
+            'transaction_uuid' => $response['transaction_uuid'] ?? null,
+            'status_code' => $response['status_code'] ?? null,
+            'status_denom' => $response['status_denom'] ?? null,
+            'checkout_url' => $this->checkoutUrl($response),
+        ];
+    }
+
+    private function buildPayload(array $data): array
+    {
+        $required = [
+            'merchant_uuid',
+            'merchant_op_id',
+            'amount',
+            'description',
+            'currency',
+            'items',
+            'invoice_number',
+            'buyer_identity_code',
+            'terminal_id',
+        ];
+        foreach ($required as $field) {
+            if (!array_key_exists($field, $data)) {
+                throw new InvalidArgumentException("Falta el campo obligatorio '{$field}'.");
+            }
+        }
+
+        $this->requireString($data['merchant_uuid'], 'merchant_uuid');
+        $this->requireInteger($data['merchant_op_id'], 'merchant_op_id', 1);
+        $this->requireString($data['description'], 'description');
+        $this->requireString($data['currency'], 'currency');
+        $this->requireInteger($data['invoice_number'], 'invoice_number', 0);
+        $this->requireString($data['buyer_identity_code'], 'buyer_identity_code');
+        $this->requireInteger($data['terminal_id'], 'terminal_id', 1);
+
+        if (!is_array($data['amount']) || !array_key_exists('total', $data['amount'])
+            || !isset($data['amount']['details']) || !is_array($data['amount']['details'])) {
+            throw new InvalidArgumentException("El campo 'amount' debe incluir total y details.");
+        }
+        $this->requireNumber($data['amount']['total'], 'amount.total');
+        if ($data['amount']['total'] <= 0) {
+            throw new InvalidArgumentException("El campo 'amount.total' debe ser mayor que cero.");
+        }
+
+        $details = [];
+        foreach (['shipping', 'discount', 'tax', 'tip'] as $field) {
+            if (!array_key_exists($field, $data['amount']['details'])) {
+                throw new InvalidArgumentException("Falta el campo obligatorio 'amount.details.{$field}'.");
+            }
+            $this->requireNumber($data['amount']['details'][$field], 'amount.details.' . $field);
+            if ($data['amount']['details'][$field] < 0) {
+                throw new InvalidArgumentException("El campo 'amount.details.{$field}' no puede ser negativo.");
+            }
+            $details[$field] = $data['amount']['details'][$field];
+        }
+
+        if (!is_array($data['items']) || count($data['items']) === 0) {
+            throw new InvalidArgumentException("El campo 'items' debe contener al menos un elemento.");
+        }
+        $items = [];
+        foreach (array_values($data['items']) as $index => $item) {
+            if (!is_array($item)) {
+                throw new InvalidArgumentException("El elemento items.{$index} debe ser un objeto.");
+            }
+            foreach (['quantity', 'price', 'name', 'description', 'tax'] as $field) {
+                if (!array_key_exists($field, $item)) {
+                    throw new InvalidArgumentException("Falta el campo obligatorio 'items.{$index}.{$field}'.");
+                }
+            }
+            $this->requireInteger($item['quantity'], "items.{$index}.quantity", 1);
+            $this->requireNumber($item['price'], "items.{$index}.price");
+            $this->requireString($item['name'], "items.{$index}.name");
+            $this->requireString($item['description'], "items.{$index}.description");
+            $this->requireNumber($item['tax'], "items.{$index}.tax");
+            if ($item['price'] < 0 || $item['tax'] < 0) {
+                throw new InvalidArgumentException("Los importes de items.{$index} no pueden ser negativos.");
+            }
+            $items[] = [
+                'quantity' => $item['quantity'],
+                'price' => $item['price'],
+                'name' => $item['name'],
+                'description' => $item['description'],
+                'tax' => $item['tax'],
             ];
+        }
 
-            $body = json_encode($paymentData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $this->settings->ensureReturnUrls();
 
-            // URL de la API de Enzona
-            $uri = $this->usedHost;
+        return [
+            'merchant_uuid' => $data['merchant_uuid'],
+            'merchant_op_id' => $data['merchant_op_id'],
+            'amount' => [
+                'total' => $data['amount']['total'],
+                'details' => $details,
+            ],
+            'description' => $data['description'],
+            'return_url' => $this->settings->return_url,
+            'currency' => $data['currency'],
+            'items' => $items,
+            'invoice_number' => $data['invoice_number'],
+            'cancel_url' => $this->settings->cancel_url,
+            'buyer_identity_code' => $data['buyer_identity_code'],
+            'terminal_id' => $data['terminal_id'],
+        ];
+    }
 
-            // Inicializar cURL
-            $ch = curl_init($uri);
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_HEADER => false,
-                CURLOPT_TIMEOUT => 30,
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_SSL_VERIFYHOST => 2,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HTTPHEADER => [
-                    "Accept: application/json",
-                    "Authorization: Bearer " . $this->accessToken,
-                    "Content-Type: application/json",
-                ],
-                CURLOPT_POSTFIELDS => $body,
-            ]);
-
-            $result = curl_exec($ch);
-            $error = curl_error($ch);
-            $errno = curl_errno($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            // Manejo de errores en cURL
-            if ($errno) {
-                throw new Exception("cURL Error ({$errno}): {$error}");
+    private function checkoutUrl(array $response)
+    {
+        foreach (($response['links'] ?? []) as $link) {
+            if (is_array($link)
+                && ($link['rel'] ?? null) === 'confirm'
+                && ($link['method'] ?? null) === 'REDIRECT'
+                && is_string($link['href'] ?? null)) {
+                return $link['href'];
             }
+        }
 
-            // Manejo de códigos HTTP
-            if ($httpCode !== 200) {
-                throw new Exception("Error en la solicitud: Código HTTP {$httpCode}");
-            }
+        return null;
+    }
 
-            // Decodificar la respuesta JSON
-            $response = json_decode($result, true);
+    private function requireString($value, $field): void
+    {
+        if (!is_string($value) || trim($value) === '') {
+            throw new InvalidArgumentException("El campo '{$field}' debe ser una cadena no vacía.");
+        }
+    }
 
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new Exception("Error al decodificar JSON: " . json_last_error_msg());
-            }
+    private function requireNumber($value, $field): void
+    {
+        if ((!is_int($value) && !is_float($value)) || !is_finite((float) $value)) {
+            throw new InvalidArgumentException("El campo '{$field}' debe ser un número entero o decimal.");
+        }
+    }
 
-            return $response ?? [];
-        } catch (Exception $e) {
-            return ["error" => $e->getMessage()];
+    private function requireInteger($value, $field, $minimum): void
+    {
+        if (!is_int($value) || $value < $minimum) {
+            throw new InvalidArgumentException("El campo '{$field}' debe ser un entero mayor o igual que {$minimum}.");
         }
     }
 }

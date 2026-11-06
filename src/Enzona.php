@@ -2,87 +2,53 @@
 
 namespace Macroseso\Enzona;
 
-use Macroseso\Enzona\Payment\CreatePayment;
-use Macroseso\Enzona\Payment\ConfirmPayment;
+use Macroseso\Enzona\Models\EnzonaSetting;
 use Macroseso\Enzona\Payment\CancelPayment;
+use Macroseso\Enzona\Payment\CompletePayment;
+use Macroseso\Enzona\Payment\CreatePayment;
+use Macroseso\Enzona\Payment\GetPayment;
+use Macroseso\Enzona\Payment\PaymentRequest;
 use Macroseso\Enzona\Payment\RefundPayment;
-use Macroseso\Enzona\RequestToken;
 
 class Enzona
 {
-    private $accessToken;
-    private $username;
-    private $password;
-    private $apiKey;
-    private $apiSecret;
-    private $sandBox;
-    private $usedHost = '';
+    private $createPayment;
+    private $getPayment;
+    private $cancelPayment;
+    private $completePayment;
+    private $refundPayment;
 
-    public function __construct()
+    public function __construct(EnzonaSetting $settings, PaymentRequest $request)
     {
-        // Obtener datos del archivo de configuración
-        $this->username = config('enzona.username');
-        $this->password = config('enzona.password');
-        $this->apiKey = config('enzona.api_key');
-        $this->apiSecret = config('enzona.api_secret');
-        $this->sandBox = config('enzona.sandbox', true);
-        $this->usedHost = ($this->sandBox) ? 'http://api.enzona.net/payment/v1.0.0/payments' : 'http://apisandbox.enzona.net/payment/v1.0.0/payments';
-
-        try {
-            // Obtener el token de acceso
-            $this->accessToken = (new RequestToken($username, $password, $apiKey, $apiSecret))->requestToken();
-        } catch (Exception $e) {
-            throw new Exception("Error al obtener el token de Enzona: " . $e->getMessage());
-        }
+        $this->createPayment = new CreatePayment($settings, $request);
+        $this->getPayment = new GetPayment($request);
+        $this->cancelPayment = new CancelPayment($request);
+        $this->completePayment = new CompletePayment($request);
+        $this->refundPayment = new RefundPayment($request);
     }
 
-    /**
-     * Crear un pago en Enzona
-     */
-    public function createPayment(array $data)
+    public function createPayment(array $data): array
     {
-        try {
-            $createPayment = new CreatePayment($this->accessToken, $this->usedHost);
-            return $createPayment->processPayment($data);
-        } catch (Exception $e) {
-            return ["error" => $e->getMessage()];
-        }
+        return $this->createPayment->processPayment($data);
     }
 
-
-public function cancelPayment($paymentId)
-{
-    try {
-        $cancelPayment = new CancelPayment($this->accessToken, $this->usedHost, $this->apiRoute);
-        return $cancelPayment->cancel($paymentId);
-    } catch (Exception $e) {
-        return ['error' => $e->getMessage()];
-    }
-}
-
-    public function completePayment($paymentId)
-{
-    try {
-        $completePayment = new CompletePayment($this->accessToken, $this->usedHost, $this->apiRoute);
-        return $completePayment->complete($paymentId);
-    } catch (Exception $e) {
-        return ['error' => $e->getMessage()];
-    }
-}
-
-        public function refundPayment($paymentId, $amount)
-{
-    try {
-        $refundPayment = new RefundPayment($this->accessToken, $this->usedHost, $this->apiRoute);
-        return $refundPayment->refund($paymentId, $amount);
-    } catch (Exception $e) {
-        return ['error' => $e->getMessage()];
-    }
-}
-
-    // Método para obtener el token actual
-    public function getAccessToken()
+    public function getPayment($transactionUuid): array
     {
-        return $this->accessToken;
+        return $this->getPayment->get($transactionUuid);
+    }
+
+    public function cancelPayment($transactionUuid): array
+    {
+        return $this->cancelPayment->cancel($transactionUuid);
+    }
+
+    public function completePayment($transactionUuid): array
+    {
+        return $this->completePayment->complete($transactionUuid);
+    }
+
+    public function refundPayment($transactionUuid, array $data): array
+    {
+        return $this->refundPayment->refund($transactionUuid, $data);
     }
 }
