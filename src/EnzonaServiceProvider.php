@@ -14,6 +14,9 @@ class EnzonaServiceProvider extends ServiceProvider
             __DIR__ . '/../config/enzona.php' => config_path('enzona.php'),
         ], 'enzona-config');
         $this->publishes([
+            __DIR__ . '/../resources/images/enzona-logo.svg' => public_path('vendor/enzona/enzona-logo.svg'),
+        ], 'enzona-assets');
+        $this->publishes([
             __DIR__ . '/../database/migrations/2026_11_06_000000_create_enzona_settings_table.php'
                 => database_path('migrations/2026_11_06_000000_create_enzona_settings_table.php'),
         ], 'enzona-migrations');
