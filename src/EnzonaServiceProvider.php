@@ -17,7 +17,7 @@ class EnzonaServiceProvider extends ServiceProvider
 
     public function register()
     {
-        $this->app->singleton(Enzona::class, function () {
+        $this->app->bind(Enzona::class, function () {
             return new Enzona();
         });
     }

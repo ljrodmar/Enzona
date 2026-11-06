@@ -12,7 +12,7 @@ class RequestToken
     protected $password;
     protected $sandBox;
     protected $usedHost;
-    protected $tokenRoute = "oauth/token";
+    protected $tokenRoute = 'token';
 
     public function __construct($username, $password, $key, $secret, $sandBox = true)
     {
