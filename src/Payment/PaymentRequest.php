@@ -32,6 +32,7 @@ class PaymentRequest
 
         $request = Http::acceptJson()
             ->withToken($this->tokenProvider->accessToken($this->settings))
+            ->withOptions(['verify' => true])
             ->timeout((int) config('enzona.timeout', 30));
 
         $response = $request->send(strtoupper($method), $url, $data === null ? [] : ['json' => $data]);

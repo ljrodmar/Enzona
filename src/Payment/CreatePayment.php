@@ -3,6 +3,7 @@
 namespace Macroseso\Enzona\Payment;
 
 use InvalidArgumentException;
+use Macroseso\Enzona\Exceptions\EnzonaException;
 use Macroseso\Enzona\Models\EnzonaSetting;
 
 class CreatePayment
@@ -18,6 +19,10 @@ class CreatePayment
 
     public function processPayment(array $data): array
     {
+        if (!$this->settings->is_enabled) {
+            throw new EnzonaException('La pasarela de EnZona está deshabilitada.');
+        }
+
         $payload = $this->buildPayload($data);
         $response = $this->request->send('POST', '', $payload);
 

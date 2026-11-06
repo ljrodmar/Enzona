@@ -82,6 +82,13 @@ class EnzonaTest extends TestCase
                 && $request->hasHeader('Authorization')
                 && $request->data() === json_decode(json_encode($expected), true);
         });
+        Http::assertSent(function (Request $request) {
+            return $request->url() === 'https://apisandbox.enzona.net/token'
+                && $request->method() === 'POST'
+                && $request->isForm()
+                && $request->data()['grant_type'] === 'client_credentials'
+                && $request->hasHeader('Authorization');
+        });
 
         $verifiedSettings = $this->settings->fresh();
         $this->assertNotNull($verifiedSettings->token_verified_at);
@@ -114,6 +121,20 @@ class EnzonaTest extends TestCase
         Http::assertSent(function (Request $request) {
             return $request->url() === 'https://api.enzona.net/payment/v1.0.0/payments/txn-prod';
         });
+    }
+
+    public function test_changing_credentials_or_environment_clears_token_verification_metadata()
+    {
+        $this->settings->markTokenVerified(3600);
+        $this->settings->updateCredentials('rotated-consumer-key', 'rotated-consumer-secret');
+        $this->assertNull($this->settings->fresh()->token_verified_at);
+        $this->assertNull($this->settings->fresh()->token_expires_in);
+
+        $this->settings->markTokenVerified(1800);
+        $this->settings->changeEnvironment('production');
+
+        $this->assertNull($this->settings->fresh()->token_verified_at);
+        $this->assertNull($this->settings->fresh()->token_expires_in);
     }
 
     public function test_payment_status_query_returns_the_original_response()
@@ -165,6 +186,7 @@ class EnzonaTest extends TestCase
         Http::fake([
             '*apisandbox.enzona.net/token' => Http::response(['access_token' => 'test-token', 'expires_in' => 3600]),
             '*apisandbox.enzona.net/payment/*' => Http::response(['error' => 'unavailable'], 503),
+            '*' => Http::response([], 500),
         ]);
 
         try {
@@ -178,7 +200,7 @@ class EnzonaTest extends TestCase
     public function test_disabled_gateway_does_not_make_http_requests()
     {
         $this->settings->deactivate();
-        Http::fake();
+        Http::fake(['*' => Http::response([], 500)]);
 
         try {
             app(Enzona::class)->getPayment('txn-disabled');
@@ -192,7 +214,7 @@ class EnzonaTest extends TestCase
 
     public function test_invalid_payment_payload_is_rejected_before_an_http_request()
     {
-        Http::fake();
+        Http::fake(['*' => Http::response([], 500)]);
         $data = $this->paymentData();
         unset($data['amount']['details']['tip']);
 
@@ -214,6 +236,7 @@ class EnzonaTest extends TestCase
                 'expires_in' => 3600,
             ]),
             $host . '/payment/*' => Http::response($paymentResponse, 200),
+            '*' => Http::response([], 500),
         ]);
     }
 

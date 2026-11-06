@@ -39,6 +39,9 @@ class EnzonaSetting extends Model
             if ((int) $setting->getKey() !== 1) {
                 throw new InvalidArgumentException('Solo se permite el registro global de configuración con id 1.');
             }
+            if (!in_array($setting->environment, ['sandbox', 'production'], true)) {
+                throw new InvalidArgumentException('El entorno debe ser sandbox o production.');
+            }
         });
     }
 
@@ -66,6 +69,8 @@ class EnzonaSetting extends Model
 
         $this->consumer_key = $consumerKey;
         $this->consumer_secret = $consumerSecret;
+        $this->token_verified_at = null;
+        $this->token_expires_in = null;
         $this->save();
 
         return $this;
@@ -78,6 +83,8 @@ class EnzonaSetting extends Model
         }
 
         $this->environment = $environment;
+        $this->token_verified_at = null;
+        $this->token_expires_in = null;
         $this->save();
 
         return $this;

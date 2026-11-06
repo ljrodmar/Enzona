@@ -17,19 +17,20 @@ class RequestToken
             throw new EnzonaException('Configure las credenciales de EnZona antes de operar.');
         }
 
+        $host = $this->apiHost($settings);
         $cacheKey = 'enzona.access_token.' . hash(
             'sha256',
-            $settings->environment . "\0" . $consumerKey . "\0" . $consumerSecret
+            $settings->environment . "\0" . $host . "\0" . $consumerKey . "\0" . $consumerSecret
         );
         $cachedToken = Cache::get($cacheKey);
         if (is_string($cachedToken) && $cachedToken !== '') {
             return $cachedToken;
         }
 
-        $host = $this->apiHost($settings);
         $response = Http::acceptJson()
             ->asForm()
             ->withBasicAuth($consumerKey, $consumerSecret)
+            ->withOptions(['verify' => true])
             ->timeout((int) config('enzona.timeout', 30))
             ->post($host . config('enzona.oauth_path', '/token'), [
                 'grant_type' => 'client_credentials',
@@ -55,7 +56,7 @@ class RequestToken
         $settings->markTokenVerified($expiresIn);
 
         if ($expiresIn !== null && $expiresIn > 0) {
-            $buffer = (int) config('enzona.token_expiration_buffer', 30);
+            $buffer = max(0, (int) config('enzona.token_expiration_buffer', 30));
             Cache::put($cacheKey, $accessToken, max(1, $expiresIn - $buffer));
         }
 
