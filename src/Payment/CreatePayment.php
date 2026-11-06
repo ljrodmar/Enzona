@@ -1,6 +1,6 @@
 <?php
 
-namespace Lmacroseso\Enzona\Payment;
+namespace Macroseso\Enzona\Payment;
 
 use Exception;
 
@@ -18,82 +18,57 @@ class CreatePayment
     public function processPayment(array $data): array
     {
         try {
-            // Validación de los datos requeridos
-            if (!isset($data['merchant_uuid'], $data['merchant_op_id'], $data['amount'], $data['description'], $data['return_url'], $data['currency'], $data['items'], $data['invoice_number'], $data['cancel_url'], $data['buyer_identity_code'], $data['terminal_id'])) {
-                throw new Exception("Faltan datos obligatorios en la solicitud.");
+            $required = [
+                'merchant_uuid',
+                'merchant_op_id',
+                'amount',
+                'description',
+                'return_url',
+                'currency',
+                'items',
+                'invoice_number',
+                'cancel_url',
+                'buyer_identity_code',
+                'terminal_id',
+            ];
+            foreach ($required as $field) {
+                if (!array_key_exists($field, $data)) {
+                    throw new Exception("Falta el campo obligatorio '{$field}'.");
+                }
             }
 
-            // Construcción del JSON de pago
+            if (!is_array($data['amount']) || !isset($data['amount']['total']) || !is_numeric($data['amount']['total'])) {
+                throw new Exception("El campo 'amount.total' debe ser numérico.");
+            }
+            if (!is_array($data['items'])) {
+                throw new Exception("El campo 'items' debe ser una lista.");
+            }
+
             $paymentData = [
-                "merchant_uuid" => $data['merchant_uuid'],
-                "merchant_op_id" => $data['merchant_op_id'],
-                "amount" => [
-                    "total" => $data['amount']['total'] ?? 0.01,
-                    "details" => [
-                        "shipping" => $data['amount']['details']['shipping'] ?? 0.00,
-                        "discount" => $data['amount']['details']['discount'] ?? 0.00,
-                        "tax" => $data['amount']['details']['tax'] ?? 0.00,
-                        "tip" => $data['amount']['details']['tip'] ?? 0.00
-                    ]
+                'merchant_uuid' => $data['merchant_uuid'],
+                'merchant_op_id' => $data['merchant_op_id'],
+                'amount' => [
+                    'total' => $data['amount']['total'],
+                    'details' => [
+                        'shipping' => $data['amount']['details']['shipping'] ?? 0.00,
+                        'discount' => $data['amount']['details']['discount'] ?? 0.00,
+                        'tax' => $data['amount']['details']['tax'] ?? 0.00,
+                        'tip' => $data['amount']['details']['tip'] ?? 0.00,
+                    ],
                 ],
-                "description" => $data['description'],
-                "return_url" => $data['return_url'],
-                "currency" => $data['currency'],
-                "items" => $data['items'], // Array de productos
-                "invoice_number" => $data['invoice_number'],
-                "cancel_url" => $data['cancel_url'],
-                "buyer_identity_code" => $data['buyer_identity_code'],
-                "terminal_id" => $data['terminal_id']
+                'description' => $data['description'],
+                'return_url' => $data['return_url'],
+                'currency' => $data['currency'],
+                'items' => $data['items'],
+                'invoice_number' => $data['invoice_number'],
+                'cancel_url' => $data['cancel_url'],
+                'buyer_identity_code' => $data['buyer_identity_code'],
+                'terminal_id' => $data['terminal_id'],
             ];
 
-            $body = json_encode($paymentData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-            // URL de la API de Enzona
-            $uri = $this->usedHost;
-
-            // Inicializar cURL
-            $ch = curl_init($uri);
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_HEADER => false,
-                CURLOPT_TIMEOUT => 30,
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_SSL_VERIFYHOST => 2,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HTTPHEADER => [
-                    "Accept: application/json",
-                    "Authorization: Bearer " . $this->accessToken,
-                    "Content-Type: application/json",
-                ],
-                CURLOPT_POSTFIELDS => $body,
-            ]);
-
-            $result = curl_exec($ch);
-            $error = curl_error($ch);
-            $errno = curl_errno($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            // Manejo de errores en cURL
-            if ($errno) {
-                throw new Exception("cURL Error ({$errno}): {$error}");
-            }
-
-            // Manejo de códigos HTTP
-            if ($httpCode !== 200) {
-                throw new Exception("Error en la solicitud: Código HTTP {$httpCode}");
-            }
-
-            // Decodificar la respuesta JSON
-            $response = json_decode($result, true);
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new Exception("Error al decodificar JSON: " . json_last_error_msg());
-            }
-
-            return $response ?? [];
+            return (new PaymentRequest($this->accessToken, $this->usedHost))->send('POST', '', $paymentData);
         } catch (Exception $e) {
-            return ["error" => $e->getMessage()];
+            return ['error' => $e->getMessage()];
         }
     }
 }

@@ -1,8 +1,9 @@
 <?php
 
-namespace Lmacroseso\Enzona;
+namespace Macroseso\Enzona;
 
 use Illuminate\Support\ServiceProvider;
+use Macroseso\Enzona\Enzona;
 
 class EnzonaServiceProvider extends ServiceProvider
 {
@@ -16,6 +17,8 @@ class EnzonaServiceProvider extends ServiceProvider
 
     public function register()
     {
-        // Aquí puedes registrar otros servicios si es necesario
+        $this->app->singleton(Enzona::class, function () {
+            return new Enzona();
+        });
     }
 }

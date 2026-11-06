@@ -1,58 +1,30 @@
 <?php
 
-namespace Lmacroseso\Enzona\Payment;
+namespace Macroseso\Enzona\Payment;
 
 use Exception;
 
 class RefundPayment
 {
-    private $accessToken;
-    private $usedHost;
-    private $refundRoute = "refund"; // Ruta para reembolsar un pago
+    private $request;
+    private $refundRoute = 'refund';
 
     public function __construct($accessToken, $usedHost)
     {
-        $this->accessToken = $accessToken;
-        $this->usedHost = $usedHost;
-        $this->apiRoute = $apiRoute;
+        $this->request = new PaymentRequest($accessToken, $usedHost);
     }
 
     public function refund($uuid, $amount)
     {
-        $uri = "{$this->usedHost}/{$uuid}/{$this->refundRoute}";
-
-        // Datos del reembolso
-        $data = [
-            'amount' => $amount, // El monto del reembolso
-        ];
-
-        $body = json_encode($data);
-
-        $ch = curl_init($uri);
-        curl_setopt_array($ch, [
-            CURLOPT_HEADER => false,
-            CURLOPT_POST => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                "Accept: application/json",
-                "Authorization: Bearer {$this->accessToken}",
-                "Content-Type: application/json"
-            ],
-            CURLOPT_POSTFIELDS => $body,
-        ]);
-
-        $result = curl_exec($ch);
-        $error = curl_error($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($code === 200) {
-            return json_decode($result, true);
+        if (!is_string($uuid) || trim($uuid) === '') {
+            throw new Exception('El identificador del pago es obligatorio.');
+        }
+        if (!is_numeric($amount) || $amount <= 0) {
+            throw new Exception('El monto del reembolso debe ser numérico y mayor que cero.');
         }
 
-        throw new Exception("Error al reembolsar el pago: {$error}", $code);
+        return $this->request->send('POST', rawurlencode($uuid) . '/' . $this->refundRoute, [
+            'amount' => $amount,
+        ]);
     }
 }
