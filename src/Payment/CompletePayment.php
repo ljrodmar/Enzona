@@ -2,24 +2,23 @@
 
 namespace Macroseso\Enzona\Payment;
 
-use Exception;
+use InvalidArgumentException;
 
 class CompletePayment
 {
     private $request;
-    private $completeRoute = 'complete';
 
-    public function __construct($accessToken, $usedHost)
+    public function __construct(PaymentRequest $request)
     {
-        $this->request = new PaymentRequest($accessToken, $usedHost);
+        $this->request = $request;
     }
 
-    public function complete($uuid)
+    public function complete($transactionUuid): array
     {
-        if (!is_string($uuid) || trim($uuid) === '') {
-            throw new Exception('El identificador del pago es obligatorio.');
+        if (!is_string($transactionUuid) || trim($transactionUuid) === '') {
+            throw new InvalidArgumentException('El identificador de la transacción es obligatorio.');
         }
 
-        return $this->request->send('POST', rawurlencode($uuid) . '/' . $this->completeRoute);
+        return $this->request->send('POST', rawurlencode($transactionUuid) . '/complete');
     }
 }

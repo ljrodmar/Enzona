@@ -2,29 +2,50 @@
 
 namespace Macroseso\Enzona\Payment;
 
-use Exception;
+use InvalidArgumentException;
 
 class RefundPayment
 {
     private $request;
-    private $refundRoute = 'refund';
 
-    public function __construct($accessToken, $usedHost)
+    public function __construct(PaymentRequest $request)
     {
-        $this->request = new PaymentRequest($accessToken, $usedHost);
+        $this->request = $request;
     }
 
-    public function refund($uuid, $amount)
+    public function refund($transactionUuid, array $data): array
     {
-        if (!is_string($uuid) || trim($uuid) === '') {
-            throw new Exception('El identificador del pago es obligatorio.');
-        }
-        if (!is_numeric($amount) || $amount <= 0) {
-            throw new Exception('El monto del reembolso debe ser numérico y mayor que cero.');
+        if (!is_string($transactionUuid) || trim($transactionUuid) === '') {
+            throw new InvalidArgumentException('El identificador de la transacción es obligatorio.');
         }
 
-        return $this->request->send('POST', rawurlencode($uuid) . '/' . $this->refundRoute, [
-            'amount' => $amount,
-        ]);
+        foreach (['amount', 'commerce_refund_id', 'username', 'description'] as $field) {
+            if (!array_key_exists($field, $data)) {
+                throw new InvalidArgumentException("Falta el campo obligatorio '{$field}'.");
+            }
+        }
+
+        if (!is_array($data['amount'])
+            || !isset($data['amount']['total'])
+            || !is_string($data['amount']['total'])
+            || !is_numeric($data['amount']['total'])) {
+            throw new InvalidArgumentException("El campo 'amount.total' debe ser una cadena numérica.");
+        }
+        foreach (['commerce_refund_id', 'username', 'description'] as $field) {
+            if (!is_string($data[$field]) || trim($data[$field]) === '') {
+                throw new InvalidArgumentException("El campo '{$field}' debe ser una cadena no vacía.");
+            }
+        }
+
+        $payload = [
+            'amount' => [
+                'total' => $data['amount']['total'],
+            ],
+            'commerce_refund_id' => $data['commerce_refund_id'],
+            'username' => $data['username'],
+            'description' => $data['description'],
+        ];
+
+        return $this->request->send('POST', rawurlencode($transactionUuid) . '/refund', $payload);
     }
 }

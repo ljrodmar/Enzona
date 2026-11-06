@@ -2,24 +2,28 @@
 
 namespace Macroseso\Enzona\Payment;
 
-use Exception;
+use InvalidArgumentException;
 
 class CancelPayment
 {
     private $request;
-    private $cancelRoute = 'cancel';
 
-    public function __construct($accessToken, $usedHost)
+    public function __construct(PaymentRequest $request)
     {
-        $this->request = new PaymentRequest($accessToken, $usedHost);
+        $this->request = $request;
     }
 
-    public function cancel($uuid)
+    public function cancel($transactionUuid): array
     {
-        if (!is_string($uuid) || trim($uuid) === '') {
-            throw new Exception('El identificador del pago es obligatorio.');
-        }
+        $this->validateTransactionUuid($transactionUuid);
 
-        return $this->request->send('POST', rawurlencode($uuid) . '/' . $this->cancelRoute);
+        return $this->request->send('POST', rawurlencode($transactionUuid) . '/cancel');
+    }
+
+    private function validateTransactionUuid($transactionUuid): void
+    {
+        if (!is_string($transactionUuid) || trim($transactionUuid) === '') {
+            throw new InvalidArgumentException('El identificador de la transacción es obligatorio.');
+        }
     }
 }

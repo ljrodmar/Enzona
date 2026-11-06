@@ -2,85 +2,53 @@
 
 namespace Macroseso\Enzona;
 
-use Macroseso\Enzona\Payment\CreatePayment;
-use Macroseso\Enzona\Payment\CompletePayment;
+use Macroseso\Enzona\Models\EnzonaSetting;
 use Macroseso\Enzona\Payment\CancelPayment;
+use Macroseso\Enzona\Payment\CompletePayment;
+use Macroseso\Enzona\Payment\CreatePayment;
+use Macroseso\Enzona\Payment\GetPayment;
+use Macroseso\Enzona\Payment\PaymentRequest;
 use Macroseso\Enzona\Payment\RefundPayment;
-use Macroseso\Enzona\RequestToken;
-use Exception;
 
 class Enzona
 {
-    private $accessToken;
-    private $username;
-    private $password;
-    private $apiKey;
-    private $apiSecret;
-    private $sandbox;
-    private $usedHost;
+    private $createPayment;
+    private $getPayment;
+    private $cancelPayment;
+    private $completePayment;
+    private $refundPayment;
 
-    public function __construct()
+    public function __construct(EnzonaSetting $settings, PaymentRequest $request)
     {
-        $this->username = config('enzona.username');
-        $this->password = config('enzona.password');
-        $this->apiKey = config('enzona.api_key');
-        $this->apiSecret = config('enzona.api_secret');
-        $this->sandbox = config('enzona.sandbox', true);
-        $apiHost = $this->sandbox ? 'https://apisandbox.enzona.net' : 'https://api.enzona.net';
-        $this->usedHost = $apiHost . '/payment/v1.0.0/payments';
-
-        try {
-            $this->accessToken = (new RequestToken(
-                $this->username,
-                $this->password,
-                $this->apiKey,
-                $this->apiSecret,
-                $this->sandbox
-            ))->requestToken();
-        } catch (Exception $e) {
-            throw new Exception('Error al obtener el token de Enzona: ' . $e->getMessage(), 0, $e);
-        }
+        $this->createPayment = new CreatePayment($settings, $request);
+        $this->getPayment = new GetPayment($request);
+        $this->cancelPayment = new CancelPayment($request);
+        $this->completePayment = new CompletePayment($request);
+        $this->refundPayment = new RefundPayment($request);
     }
 
-    public function createPayment(array $data)
+    public function createPayment(array $data): array
     {
-        try {
-            $createPayment = new CreatePayment($this->accessToken, $this->usedHost);
-            return $createPayment->processPayment($data);
-        } catch (Exception $e) {
-            return ["error" => $e->getMessage()];
-        }
+        return $this->createPayment->processPayment($data);
     }
 
-    public function cancelPayment($paymentId)
+    public function getPayment($transactionUuid): array
     {
-        try {
-            return (new CancelPayment($this->accessToken, $this->usedHost))->cancel($paymentId);
-        } catch (Exception $e) {
-            return ['error' => $e->getMessage()];
-        }
+        return $this->getPayment->get($transactionUuid);
     }
 
-    public function completePayment($paymentId)
+    public function cancelPayment($transactionUuid): array
     {
-        try {
-            return (new CompletePayment($this->accessToken, $this->usedHost))->complete($paymentId);
-        } catch (Exception $e) {
-            return ['error' => $e->getMessage()];
-        }
+        return $this->cancelPayment->cancel($transactionUuid);
     }
 
-    public function refundPayment($paymentId, $amount)
+    public function completePayment($transactionUuid): array
     {
-        try {
-            return (new RefundPayment($this->accessToken, $this->usedHost))->refund($paymentId, $amount);
-        } catch (Exception $e) {
-            return ['error' => $e->getMessage()];
-        }
+        return $this->completePayment->complete($transactionUuid);
     }
 
-    public function getAccessToken()
+    public function refundPayment($transactionUuid, array $data): array
     {
-        return $this->accessToken;
+        return $this->refundPayment->refund($transactionUuid, $data);
     }
 }
