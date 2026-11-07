@@ -45,7 +45,7 @@ $settings->updateCredentials($consumerKey, $consumerSecret);
 $settings->changeEnvironment('sandbox');
 ```
 
-Use `changeEnvironment('production')` para cambiar a producción. Los entornos permitidos son `sandbox` y `production`. Las credenciales se cifran con la clave Laravel (`APP_KEY`), se guardan en columnas `TEXT` y se excluyen de la serialización JSON del modelo. No las imprima ni las registre en logs. No configure credenciales o URLs de retorno en `.env`.
+Use `changeEnvironment('production')` para cambiar a producción. Los entornos permitidos son `sandbox` y `production`. Las credenciales se cifran con la clave Laravel (`APP_KEY`), se guardan en columnas `TEXT` y se excluyen de la serialización JSON del modelo. No las imprima ni las registre en logs. No configure credenciales en `.env`.
 
 La pasarela comienza deshabilitada. Después de verificar las credenciales y el entorno, habilítela explícitamente:
 
@@ -63,17 +63,11 @@ $returnUrl = route('enzona.return');
 $cancelUrl = route('enzona.cancel');
 ```
 
-También se pueden establecer URLs personalizadas:
-
-```php
-$settings->updateReturnUrls($returnUrl, $cancelUrl);
-```
-
-Si una URL no está configurada, se genera con la ruta nombrada correspondiente y se guarda al crear el siguiente pago. Los valores personalizados existentes no se reemplazan. Los únicos endpoints configurables del paquete están en `config/enzona.php`; el entorno, los datos de acceso y las URLs de retorno pertenecen al registro de base de datos.
+Al crear cada pago, el paquete usa estas rutas como URLs de retorno. No se almacenan en la base de datos ni se personalizan desde el modelo de configuración.
 
 ## Crear un pago
 
-Resuelva el cliente desde el contenedor de Laravel. La aplicación proporciona los datos comerciales; el paquete toma `return_url` y `cancel_url` de `enzona_settings` e ignora esos campos si vienen en los datos recibidos:
+Resuelva el cliente desde el contenedor de Laravel. La aplicación proporciona los datos comerciales; el paquete establece `return_url` y `cancel_url` con las rutas nombradas `enzona.return` y `enzona.cancel` e ignora esos campos si vienen en los datos recibidos:
 
 ```php
 use Macroseso\Enzona\Enzona;
@@ -114,7 +108,7 @@ $result = app(Enzona::class)->createPayment([
 - `amount.total`: importe total numérico.
 - `amount.details.shipping`, `discount`, `tax`, `tip`: importes numéricos del desglose.
 - `description`: descripción del pago.
-- `return_url` y `cancel_url`: los administra el paquete desde `enzona_settings`; no se toman del payload de la aplicación.
+- `return_url` y `cancel_url`: URLs de las rutas nombradas del paquete; no se toman del payload de la aplicación ni se guardan en la base de datos.
 - `currency`: moneda admitida por la API.
 - `items`: uno o más elementos con `quantity`, `price`, `name`, `description` y `tax`.
 - `invoice_number`: número de factura.

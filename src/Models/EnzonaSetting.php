@@ -19,8 +19,6 @@ class EnzonaSetting extends Model
         'is_enabled',
         'consumer_key',
         'consumer_secret',
-        'return_url',
-        'cancel_url',
         'token_verified_at',
         'token_expires_in',
     ];
@@ -106,40 +104,6 @@ class EnzonaSetting extends Model
     {
         $this->is_enabled = false;
         $this->save();
-
-        return $this;
-    }
-
-    public function updateReturnUrls($returnUrl, $cancelUrl): self
-    {
-        foreach ([$returnUrl, $cancelUrl] as $url) {
-            if ($url !== null && (!is_string($url) || trim($url) === '')) {
-                throw new InvalidArgumentException('Las URLs de retorno deben ser cadenas no vacías o null.');
-            }
-        }
-
-        $this->return_url = $returnUrl;
-        $this->cancel_url = $cancelUrl;
-        $this->save();
-
-        return $this;
-    }
-
-    public function ensureReturnUrls(): self
-    {
-        $changed = false;
-        if (!$this->return_url) {
-            $this->return_url = route('enzona.return');
-            $changed = true;
-        }
-        if (!$this->cancel_url) {
-            $this->cancel_url = route('enzona.cancel');
-            $changed = true;
-        }
-
-        if ($changed && $this->exists) {
-            $this->save();
-        }
 
         return $this;
     }
