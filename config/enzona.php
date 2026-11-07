@@ -10,6 +10,6 @@ return [
     'oauth_scope' => 'enzona_business_payment enzona_business_qr',
     'timeout' => 30,
     'token_expiration_buffer' => 30,
-    'register_routes' => true,
+    'register_routes' => false,
     'route_middleware' => ['web'],
 ];
