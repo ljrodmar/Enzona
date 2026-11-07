@@ -5,6 +5,7 @@ namespace Macroseso\Enzona\Tests\Feature;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Macroseso\Enzona\Enzona;
 use Macroseso\Enzona\Exceptions\EnzonaException;
 use Macroseso\Enzona\Models\EnzonaSetting;
@@ -41,8 +42,13 @@ class EnzonaTest extends TestCase
         $this->artisan('migrate');
         $this->settings = EnzonaSetting::global();
         $this->settings->updateCredentials('test-consumer-key', 'test-consumer-secret');
-        $this->settings->updateReturnUrls('https://merchant.test/return', 'https://merchant.test/cancel');
         $this->settings->activate();
+    }
+
+    public function test_settings_table_does_not_store_return_urls()
+    {
+        $this->assertFalse(Schema::hasColumn('enzona_settings', 'return_url'));
+        $this->assertFalse(Schema::hasColumn('enzona_settings', 'cancel_url'));
     }
 
     public function test_credentials_are_encrypted_and_hidden_from_serialized_settings()
@@ -75,8 +81,8 @@ class EnzonaTest extends TestCase
         $result = app(Enzona::class)->createPayment($input);
 
         $expected = $this->paymentData();
-        $expected['return_url'] = 'https://merchant.test/return';
-        $expected['cancel_url'] = 'https://merchant.test/cancel';
+        $expected['return_url'] = route('enzona.return');
+        $expected['cancel_url'] = route('enzona.cancel');
         Http::assertSent(function (Request $request) use ($expected) {
             if ($request->url() !== 'https://apisandbox.enzona.net/payment/v1.0.0/payments'
                 || !$request->hasHeader('Authorization')) {
@@ -105,17 +111,6 @@ class EnzonaTest extends TestCase
         $this->assertSame('PENDING', $result['status_denom']);
         $this->assertSame('https://checkout.enzona.test/pay', $result['checkout_url']);
         $this->assertSame('txn-123', $result['response']['transaction_uuid']);
-    }
-
-    public function test_missing_return_urls_are_generated_from_named_routes()
-    {
-        $this->settings->updateReturnUrls(null, null);
-        $this->fakeResponses(['transaction_uuid' => 'txn-456']);
-
-        app(Enzona::class)->createPayment($this->paymentData());
-
-        $this->assertSame(route('enzona.return'), $this->settings->fresh()->return_url);
-        $this->assertSame(route('enzona.cancel'), $this->settings->fresh()->cancel_url);
     }
 
     public function test_environment_selects_production_api_host()

@@ -113,8 +113,6 @@ class CreatePayment
             ];
         }
 
-        $this->settings->ensureReturnUrls();
-
         return [
             'merchant_uuid' => $data['merchant_uuid'],
             'merchant_op_id' => $data['merchant_op_id'],
@@ -123,11 +121,11 @@ class CreatePayment
                 'details' => $details,
             ],
             'description' => $data['description'],
-            'return_url' => $this->settings->return_url,
+            'return_url' => route('enzona.return'),
             'currency' => $data['currency'],
             'items' => $items,
             'invoice_number' => $data['invoice_number'],
-            'cancel_url' => $this->settings->cancel_url,
+            'cancel_url' => route('enzona.cancel'),
             'buyer_identity_code' => $data['buyer_identity_code'],
             'terminal_id' => $data['terminal_id'],
         ];
